@@ -314,6 +314,7 @@ void SetDevicePower(power_t rpower, int source)
   uint8_t state;
 
   ShowSource(source);
+  //AddLog_P2(LOG_LEVEL_DEBUG, PSTR("INO: SetDevicePower(new).rpower=%d"), rpower);
 
   if (POWER_ALL_ALWAYS_ON == Settings.poweronstate) {  // All on and stay on
     power = (1 << devices_present) -1;
@@ -335,12 +336,12 @@ void SetDevicePower(power_t rpower, int source)
       }
     }
   }
-
   XdrvMailbox.index = rpower;
   XdrvCall(FUNC_SET_POWER);               // Signal power state
 
   XdrvMailbox.index = rpower;
   XdrvMailbox.payload = source;
+
   if (XdrvCall(FUNC_SET_DEVICE_POWER)) {  // Set power state and stop if serviced
     // Serviced
   }
@@ -583,6 +584,7 @@ void MqttDataHandler(char* topic, uint8_t* data, unsigned int data_len)
     else if ((CMND_POWER == command_code) && (index > 0) && (index <= devices_present)) {
       if ((payload < 0) || (payload > 4)) { payload = 9; }
 //      Settings.flag.device_index_enable = user_append_index;
+      //AddLog_P2(LOG_LEVEL_DEBUG, PSTR("INO: ExecuteCommandPower index=%d payload=%d"), index, payload);
       ExecuteCommandPower(index, payload, SRC_IGNORE);
       fallback_topic_flag = false;
       return;
@@ -1491,6 +1493,9 @@ void ExecuteCommandPower(uint8_t device, uint8_t state, int source)
 
 //  ShowSource(source);
 
+  //AddLog_P2(LOG_LEVEL_DEBUG, PSTR("INO: ExecuteCommandPower device=%d state=%d"), device, state);
+  XdrvMailbox.notused = device;
+
   if (SONOFF_IFAN02 == my_module_type) {
     blink_mask &= 1;                 // No blinking on the fan relays
     Settings.flag.interlock = 0;     // No interlock mode as it is already done by the microcontroller
@@ -1529,6 +1534,7 @@ void ExecuteCommandPower(uint8_t device, uint8_t state, int source)
       }
       interlock_mutex = false;
     }
+    //AddLog_P2(LOG_LEVEL_DEBUG, PSTR("INO: ExecuteCommandPower power=%d state=%d"), power, state);
 
     switch (state) {
     case POWER_OFF: {
@@ -1540,6 +1546,7 @@ void ExecuteCommandPower(uint8_t device, uint8_t state, int source)
     case POWER_TOGGLE:
       power ^= mask;
     }
+    //AddLog_P2(LOG_LEVEL_DEBUG, PSTR("INO: ExecuteCommandPower power=%d state=%d"), power, state);
     SetDevicePower(power, source);
 #ifdef USE_DOMOTICZ
     DomoticzUpdatePowerState(device);
@@ -1817,7 +1824,7 @@ void PerformEverySecond(void)
     RtcRebootSave();
 
     Settings.bootcount++;              // Moved to here to stop flash writes during start-up
-    AddLog_P2(LOG_LEVEL_DEBUG, PSTR(D_LOG_APPLICATION D_BOOT_COUNT " %d"), Settings.bootcount);
+    //AddLog_P2(LOG_LEVEL_DEBUG, PSTR(D_LOG_APPLICATION D_BOOT_COUNT " %d"), Settings.bootcount);
   }
 
   if ((4 == uptime) && (SONOFF_IFAN02 == my_module_type)) {  // Microcontroller needs 3 seconds before accepting commands

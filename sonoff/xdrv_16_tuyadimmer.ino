@@ -111,7 +111,7 @@ void TuyaSendBool(uint8_t id, bool value){
 }
 
 void TuyaSendValue(uint8_t id, uint32_t value){
-    TuyaSendState(id, TUYA_TYPE_VALUE, (uint8_t*)(&value));
+     TuyaSendState(id, TUYA_TYPE_VALUE, (uint8_t*)(&value));
 }
 
 bool TuyaSetPower(void)
@@ -121,16 +121,36 @@ bool TuyaSetPower(void)
   uint8_t rpower = XdrvMailbox.index;
   int16_t source = XdrvMailbox.payload;
 
+  AddLog_P2(LOG_LEVEL_DEBUG, PSTR("TYA: Tuya Init Settings.param(%d) --> %d"),P_TUYA_DIMMER_ID, Settings.param[P_TUYA_DIMMER_ID] );
+  AddLog_P2(LOG_LEVEL_DEBUG, PSTR("TYA: Tuya Init Settings.param(%d) --> %d"),6, Settings.param[6] );
+
+  //AddLog_P2(LOG_LEVEL_DEBUG, PSTR("TYA: TuyaSetPower(new). Device =%d, power=%d"), XdrvMailbox.notused, XdrvMailbox.index);
+
   if (source != SRC_SWITCH && TuyaSerial) {  // ignore to prevent loop from pushing state from faceplate interaction
-
-    AddLog_P2(LOG_LEVEL_DEBUG, PSTR("TYA: SetDevicePower.rpower=%d"), rpower);
-
-    TuyaSendBool(TUYA_POWER_ID, rpower);
+    boolean Bin[] = {0,0,0,0};
+    convertDecToBin(rpower, Bin);
+    for(int i = 0 ; i < 4 ; i++)
+    {
+        AddLog_P2(LOG_LEVEL_DEBUG, PSTR("TYA: --SetDevicePower-- for Device = %d,  Power=%d"),i, Bin[i]);
+    }
+    AddLog_P2(LOG_LEVEL_DEBUG, PSTR("TYA: SetDevicePower for Device = %d, with rPower=%d, Power=%d"),XdrvMailbox.notused, rpower, Bin[XdrvMailbox.notused-1]);
+    TuyaSendBool(XdrvMailbox.notused, Bin[XdrvMailbox.notused-1]);
 
     status = true;
   }
   return status;
 }
+
+void convertDecToBin(int Dec, boolean Bin[]) {
+  for(int i = 3 ; i >= 0 ; i--) {
+    if(pow(2, i)<=Dec) {
+      Dec = Dec - pow(2, i);
+      Bin[(i)] = 1;
+    } else {
+    }
+  }
+}
+
 
 bool TuyaSetChannels(void)
 {
@@ -144,16 +164,18 @@ void LightSerialDuty(uint8_t duty)
     if (duty < 25) {
       duty = 25;  // dimming acts odd below 25(10%) - this mirrors the threshold set on the faceplate itself
     }
-
-    AddLog_P2(LOG_LEVEL_DEBUG, PSTR( "TYA: Send Serial Packet Dim Value=%d (id=%d)"), duty, Settings.param[P_TUYA_DIMMER_ID]);
-
-    TuyaSendValue(Settings.param[P_TUYA_DIMMER_ID], duty);
+    if(devices_present != 4) // no Dimmer for 4 relay
+    {
+        AddLog_P2(LOG_LEVEL_DEBUG, PSTR( "TYA: Send Serial Packet Dim Value=%d (id=%d)"), duty, Settings.param[P_TUYA_DIMMER_ID]);
+        TuyaSendValue(Settings.param[P_TUYA_DIMMER_ID], duty);
+    }
 
   } else {
     tuya_ignore_dim = false;  // reset flag
-
-    AddLog_P2(LOG_LEVEL_DEBUG, PSTR( "TYA: Send Dim Level skipped due to 0 or already set. Value=%d"), duty);
-
+    if(devices_present != 4) // no Dimmer for 4 relay
+    {
+      AddLog_P2(LOG_LEVEL_DEBUG, PSTR( "TYA: Send Dim Level skipped due to 0 or already set. Value=%d"), duty);
+    }
   }
 }
 
@@ -193,11 +215,11 @@ void TuyaPacketProcess(void)
     case TUYA_CMD_STATE:
       if (tuya_buffer[5] == 5) {  // on/off packet
 
-        AddLog_P2(LOG_LEVEL_DEBUG, PSTR("TYA: RX - %s State"),tuya_buffer[10]?"On":"Off");
-
-        if((power || Settings.light_dimmer > 0) && (power != tuya_buffer[10])) {
+        AddLog_P2(LOG_LEVEL_DEBUG, PSTR("TYA: RX Device -%d --> %s State"),tuya_buffer[6],tuya_buffer[10]?"On":"Off");
+        ExecuteCommandPower(tuya_buffer[6], tuya_buffer[10], SRC_SWITCH);  // send SRC_SWITCH? to use as flag to prevent loop from inbound states from faceplate interaction
+        /*if((power || Settings.light_dimmer > 0) && (power != tuya_buffer[10])) {
           ExecuteCommandPower(1, tuya_buffer[10], SRC_SWITCH);  // send SRC_SWITCH? to use as flag to prevent loop from inbound states from faceplate interaction
-        }
+        }*/
       }
       else if (tuya_buffer[5] == 8) {  // dim packet
 
@@ -280,6 +302,7 @@ bool TuyaModuleSelected(void)
 
 void TuyaInit(void)
 {
+  devices_present = Settings.param[6] == 0 ? 1 : Settings.param[6];
   if (!Settings.param[P_TUYA_DIMMER_ID]) {
     Settings.param[P_TUYA_DIMMER_ID] = TUYA_DIMMER_ID;
   }

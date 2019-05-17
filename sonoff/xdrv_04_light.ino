@@ -728,6 +728,7 @@ char* LightGetColor(uint8_t type, char* scolor)
 void LightPowerOn(void)
 {
   if (Settings.light_dimmer && !(light_power)) {
+    AddLog_P2(LOG_LEVEL_DEBUG, PSTR("INO: LightPowerOn light_device=%d POWER_ON=%d"), light_device, POWER_ON);
     ExecuteCommandPower(light_device, POWER_ON, SRC_LIGHT);
   }
 }
@@ -883,6 +884,7 @@ void LightRandomColor(void)
 
 void LightSetPower(void)
 {
+
 //  light_power = XdrvMailbox.index;
   light_old_power = light_power;
   light_power = bitRead(XdrvMailbox.index, light_device -1);
@@ -892,6 +894,9 @@ void LightSetPower(void)
   if (light_power && !light_old_power) {
     light_update = 1;
   }
+  //AddLog_P2(LOG_LEVEL_DEBUG, PSTR("IFO: LightSetPower Light Device =%d light Power = %d"), light_device, light_power);
+  //AddLog_P2(LOG_LEVEL_DEBUG, PSTR("IFO: LightSetPower Light Device =%d light Power = %d, PayLoad =%d"), light_device, light_power, XdrvMailbox.PayLoad);
+  //XdrvMailbox.PayLoad = light_power;
   LightAnimate();
 }
 
